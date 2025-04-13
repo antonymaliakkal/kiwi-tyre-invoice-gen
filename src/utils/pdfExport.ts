@@ -161,42 +161,43 @@ export const exportToPdf = async (
     doc.setFont('helvetica', 'normal');
     doc.text(`Next Service Date: ${invoiceData.invoiceInfo.nextServiceDate}`, 10, finalTotalY + 10);
     
-    // Calculate position for sales note, which comes at the very end
-    const noteY = finalTotalY + 20;
+    // Add footer on first page
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'normal');
+    doc.text('Thank you for your business!', 105, 280, { align: 'center' });
     
-    // Check if there's enough space for the sales note
-    const availableHeight = doc.internal.pageSize.height - noteY - 20; // 20 points buffer for footer
-    
-    // Add sales note (last element)
-    doc.setFont('helvetica', 'italic');
-    doc.text('Note:', 10, noteY);
-    
-    // Split long note text into multiple lines
-    const noteText = invoiceData.saleNote || '';
-    const splitNoteText = doc.splitTextToSize(noteText, 180);
-    
-    // Check if note will fit on current page or needs a new page
-    if (splitNoteText.length * 5 > availableHeight) {
-      // Not enough space, add a new page
+    // Always create a new page for sales notes
+    if (invoiceData.saleNote && invoiceData.saleNote.trim()) {
+      // Add a new page for sales notes
       doc.addPage();
       
-      // Add sales note on the new page
-      doc.setFont('helvetica', 'italic');
-      doc.text('Note:', 10, 20);
-      doc.text(splitNoteText, 10, 30);
+      // Add professional header for sales notes
+      doc.setFontSize(14);
+      doc.setFont('helvetica', 'bold');
+      doc.text('SERVICE NOTES', 105, 20, { align: 'center' });
       
-      // Add footer on the new page
-      doc.setFontSize(8);
-      doc.setFont('helvetica', 'normal');
-      doc.text('Thank you for your business!', 105, 280, { align: 'center' });
-    } else {
-      // Enough space, add note on current page
-      doc.text(splitNoteText, 10, noteY + 10);
+      // Add reference to invoice number
+      doc.setFontSize(10);
+      doc.text(`Reference: Invoice #${invoiceData.invoiceInfo.number}`, 105, 30, { align: 'center' });
+      doc.text(`Vehicle: ${invoiceData.vehicleInfo.makeModel} (${invoiceData.vehicleInfo.registration})`, 105, 35, { align: 'center' });
       
-      // Add footer
-      doc.setFontSize(8);
+      // Add horizontal line
+      doc.setDrawColor(245, 166, 35); // National yellow
+      doc.setLineWidth(0.5);
+      doc.line(20, 40, 190, 40);
+      
+      // Split long note text into multiple lines with better formatting
+      const noteText = invoiceData.saleNote || '';
+      const splitNoteText = doc.splitTextToSize(noteText, 170);
+      
+      // Add sales notes content with proper spacing
+      doc.setFontSize(10);
       doc.setFont('helvetica', 'normal');
-      doc.text('Thank you for your business!', 105, 280, { align: 'center' });
+      doc.text(splitNoteText, 20, 50);
+      
+      // Add footer on notes page
+      doc.setFontSize(8);
+      doc.text('Thank you for choosing National Tyres and Auto Care Ltd.', 105, 280, { align: 'center' });
     }
 
     // Save the PDF
