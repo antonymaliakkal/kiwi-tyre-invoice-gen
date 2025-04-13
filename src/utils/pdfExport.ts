@@ -123,34 +123,54 @@ export const exportToPdf = async (
     // Position after table
     const contentStartY = doc.lastAutoTable.finalY + 10;
 
-    // Add sale note with proper wrapping
+    // Add next service date ABOVE the sales note
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`Next Service Date: ${invoiceData.invoiceInfo.nextServiceDate}`, 10, contentStartY);
+
+    // Add sale note below the next service date
     const noteY = contentStartY + 7;
     doc.setFont('helvetica', 'italic');
     doc.text('Note:', 10, noteY);
     
     // Split long note text into multiple lines with max width to prevent overlapping
     const noteText = invoiceData.saleNote || '';
-    const splitNoteText = doc.splitTextToSize(noteText, 100);
+    const splitNoteText = doc.splitTextToSize(noteText, 150);
     
-    // Determine if the note is long (more than 3 lines)
-    const isLongNote = splitNoteText.length > 3;
+    // Calculate if note will fit on current page
+    const availableHeight = doc.internal.pageSize.height - noteY - 50; // 50 points buffer for footer and margins
+    const estimatedNoteHeight = splitNoteText.length * 5; // Approximately 5 points per line
     
-    // Draw the note with proper wrapping
-    doc.text(splitNoteText, 25, noteY);
+    let currentY = noteY;
     
-    // Calculate the height of the note text to determine where to place the next service date
-    const noteHeight = splitNoteText.length * 5; // Approximately 5 points per line
-    
-    // Add next service date (positioned after the note)
-    const nextServiceY = isLongNote ? noteY + noteHeight + 5 : contentStartY;
-    doc.setFontSize(10);
-    doc.setFont('helvetica', 'normal');
-    doc.text(`Next Service Date: ${invoiceData.invoiceInfo.nextServiceDate}`, 10, nextServiceY);
+    // If note will not fit completely on this page, split it across pages
+    if (estimatedNoteHeight > availableHeight) {
+      // Calculate how many lines can fit on current page
+      const linesPerPage = Math.floor(availableHeight / 5);
+      const firstPageLines = splitNoteText.slice(0, linesPerPage);
+      const remainingLines = splitNoteText.slice(linesPerPage);
+      
+      // Draw first part of the note
+      doc.text(firstPageLines, 25, noteY);
+      
+      // Add a new page
+      doc.addPage();
+      
+      // Continue note on new page
+      doc.text('Note (continued):', 10, 20);
+      doc.text(remainingLines, 25, 20);
+      
+      // Update Y position for totals (on new page)
+      currentY = 20 + remainingLines.length * 5 + 10;
+    } else {
+      // Note fits on current page, draw it normally
+      doc.text(splitNoteText, 25, noteY);
+      currentY = noteY + estimatedNoteHeight + 10;
+    }
 
-    // Adjust totals starting position based on note length
-    const totalsStartY = Math.max(noteY + noteHeight + 10, nextServiceY + 10);
-
-    // Add totals
+    // Add totals (either on current or new page)
+    const totalsStartY = currentY;
+    
     doc.setFont('helvetica', 'normal');
     const discountText = invoiceData.calculation.discountType === 'percentage'
       ? `Discount (${invoiceData.calculation.discount}%):`
@@ -174,11 +194,12 @@ export const exportToPdf = async (
       doc.text(`$${invoiceData.calculation.rounding.toFixed(2)}`, 190, totalsStartY + 15, { align: 'right' });
     }
 
+    const finalTotalY = invoiceData.calculation.rounding !== 0 ? totalsStartY + 20 : totalsStartY + 15;
     doc.setFont('helvetica', 'bold');
-    doc.text('TOTAL:', 150, totalsStartY + 20, { align: 'right' });
-    doc.text(`$${invoiceData.calculation.total.toFixed(2)}`, 190, totalsStartY + 20, { align: 'right' });
+    doc.text('TOTAL:', 150, finalTotalY, { align: 'right' });
+    doc.text(`$${invoiceData.calculation.total.toFixed(2)}`, 190, finalTotalY, { align: 'right' });
 
-    // Add footer
+    // Add footer on the last page
     doc.setFontSize(8);
     doc.setFont('helvetica', 'normal');
     doc.text('Thank you for your business!', 105, 280, { align: 'center' });
@@ -192,4 +213,3 @@ export const exportToPdf = async (
     return false;
   }
 };
-  
