@@ -1,3 +1,4 @@
+
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import html2canvas from 'html2canvas';
@@ -122,16 +123,32 @@ export const exportToPdf = async (
     // Position after table
     const contentStartY = doc.lastAutoTable.finalY + 10;
 
-    // Add next service date
-    doc.setFontSize(10);
-    doc.setFont('helvetica', 'normal');
-    doc.text(`Next Service Date: ${invoiceData.invoiceInfo.nextServiceDate}`, 10, contentStartY);
-
-    // Add sale note
+    // Add sale note with proper wrapping
     const noteY = contentStartY + 7;
     doc.setFont('helvetica', 'italic');
     doc.text('Note:', 10, noteY);
-    doc.text(invoiceData.saleNote, 25, noteY, { maxWidth: 100 });
+    
+    // Split long note text into multiple lines with max width to prevent overlapping
+    const noteText = invoiceData.saleNote || '';
+    const splitNoteText = doc.splitTextToSize(noteText, 100);
+    
+    // Determine if the note is long (more than 3 lines)
+    const isLongNote = splitNoteText.length > 3;
+    
+    // Draw the note with proper wrapping
+    doc.text(splitNoteText, 25, noteY);
+    
+    // Calculate the height of the note text to determine where to place the next service date
+    const noteHeight = splitNoteText.length * 5; // Approximately 5 points per line
+    
+    // Add next service date (positioned after the note)
+    const nextServiceY = isLongNote ? noteY + noteHeight + 5 : contentStartY;
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`Next Service Date: ${invoiceData.invoiceInfo.nextServiceDate}`, 10, nextServiceY);
+
+    // Adjust totals starting position based on note length
+    const totalsStartY = Math.max(noteY + noteHeight + 10, nextServiceY + 10);
 
     // Add totals
     doc.setFont('helvetica', 'normal');
@@ -143,7 +160,6 @@ export const exportToPdf = async (
       ? (invoiceData.calculation.subtotal * (invoiceData.calculation.discount / 100))
       : invoiceData.calculation.discount;
 
-    const totalsStartY = noteY + 20;
     doc.text('Subtotal:', 150, totalsStartY, { align: 'right' });
     doc.text(`$${invoiceData.calculation.subtotal.toFixed(2)}`, 190, totalsStartY, { align: 'right' });
 
