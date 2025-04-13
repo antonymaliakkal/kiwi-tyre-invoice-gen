@@ -123,53 +123,21 @@ export const exportToPdf = async (
     // Position after table
     const contentStartY = doc.lastAutoTable.finalY + 10;
 
-    // Add next service date ABOVE the sales note
-    doc.setFontSize(10);
-    doc.setFont('helvetica', 'normal');
-    doc.text(`Next Service Date: ${invoiceData.invoiceInfo.nextServiceDate}`, 10, contentStartY);
-
-    // Add sale note below the next service date
-    const noteY = contentStartY + 7;
+    // Add sale note
+    const noteY = contentStartY;
     doc.setFont('helvetica', 'italic');
     doc.text('Note:', 10, noteY);
     
     // Split long note text into multiple lines with max width to prevent overlapping
     const noteText = invoiceData.saleNote || '';
     const splitNoteText = doc.splitTextToSize(noteText, 150);
+    doc.text(splitNoteText, 25, noteY);
     
-    // Calculate if note will fit on current page
-    const availableHeight = doc.internal.pageSize.height - noteY - 50; // 50 points buffer for footer and margins
-    const estimatedNoteHeight = splitNoteText.length * 5; // Approximately 5 points per line
+    // Calculate the height of the note text
+    const noteHeight = splitNoteText.length * 5; // Approximately 5 points per line
     
-    let currentY = noteY;
-    
-    // If note will not fit completely on this page, split it across pages
-    if (estimatedNoteHeight > availableHeight) {
-      // Calculate how many lines can fit on current page
-      const linesPerPage = Math.floor(availableHeight / 5);
-      const firstPageLines = splitNoteText.slice(0, linesPerPage);
-      const remainingLines = splitNoteText.slice(linesPerPage);
-      
-      // Draw first part of the note
-      doc.text(firstPageLines, 25, noteY);
-      
-      // Add a new page
-      doc.addPage();
-      
-      // Continue note on new page
-      doc.text('Note (continued):', 10, 20);
-      doc.text(remainingLines, 25, 20);
-      
-      // Update Y position for totals (on new page)
-      currentY = 20 + remainingLines.length * 5 + 10;
-    } else {
-      // Note fits on current page, draw it normally
-      doc.text(splitNoteText, 25, noteY);
-      currentY = noteY + estimatedNoteHeight + 10;
-    }
-
-    // Add totals (either on current or new page)
-    const totalsStartY = currentY;
+    // Add totals at a position after the note
+    const totalsStartY = noteY + noteHeight + 10;
     
     doc.setFont('helvetica', 'normal');
     const discountText = invoiceData.calculation.discountType === 'percentage'
@@ -189,20 +157,42 @@ export const exportToPdf = async (
     doc.text('GST (15%):', 150, totalsStartY + 10, { align: 'right' });
     doc.text(`$${invoiceData.calculation.gst.toFixed(2)}`, 190, totalsStartY + 10, { align: 'right' });
 
+    let finalTotalY = totalsStartY + 15;
+    
     if (invoiceData.calculation.rounding !== 0) {
       doc.text('Rounding:', 150, totalsStartY + 15, { align: 'right' });
       doc.text(`$${invoiceData.calculation.rounding.toFixed(2)}`, 190, totalsStartY + 15, { align: 'right' });
+      finalTotalY = totalsStartY + 20;
     }
 
-    const finalTotalY = invoiceData.calculation.rounding !== 0 ? totalsStartY + 20 : totalsStartY + 15;
     doc.setFont('helvetica', 'bold');
     doc.text('TOTAL:', 150, finalTotalY, { align: 'right' });
     doc.text(`$${invoiceData.calculation.total.toFixed(2)}`, 190, finalTotalY, { align: 'right' });
 
-    // Add footer on the last page
-    doc.setFontSize(8);
-    doc.setFont('helvetica', 'normal');
-    doc.text('Thank you for your business!', 105, 280, { align: 'center' });
+    // Check if we need to add a new page for the next service date (if too close to bottom)
+    const remainingSpace = doc.internal.pageSize.height - finalTotalY - 40; // 40 points buffer
+
+    if (remainingSpace < 20) {
+      doc.addPage();
+      
+      // Add next service date on the new page
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'normal');
+      doc.text(`Next Service Date: ${invoiceData.invoiceInfo.nextServiceDate}`, 10, 20);
+      
+      // Add footer
+      doc.setFontSize(8);
+      doc.text('Thank you for your business!', 105, 280, { align: 'center' });
+    } else {
+      // Add next service date below everything else
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'normal');
+      doc.text(`Next Service Date: ${invoiceData.invoiceInfo.nextServiceDate}`, 10, finalTotalY + 20);
+      
+      // Add footer
+      doc.setFontSize(8);
+      doc.text('Thank you for your business!', 105, 280, { align: 'center' });
+    }
 
     // Save the PDF
     doc.save(`Invoice-${invoiceData.invoiceInfo.number}.pdf`);
